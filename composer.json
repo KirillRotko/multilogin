@@ -1,0 +1,11 @@
+{
+  "autoload": {
+    "psr-4": {
+      "Helpers\\": "helpers/"
+    }
+  },
+  "require": {
+    "symfony/dotenv": "^7.0",
+    "rmccue/requests": "^2.0"
+  }
+}
