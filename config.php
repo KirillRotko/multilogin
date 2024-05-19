@@ -1,14 +1,4 @@
 <?php
-use Symfony\Component\Dotenv\Dotenv;
-
-$dotenv = new Dotenv();
-$dotenv->load(__DIR__.'/.env');
-
-$creds = [
-    "email" => $_ENV['MLX_EMAIL'],
-    "password" => $_ENV['MLX_PASSWORD']
-];
-
 $extensions = [
     "/extensions/adblock",
     "/extensions/colorzilla"

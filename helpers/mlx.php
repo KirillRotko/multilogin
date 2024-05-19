@@ -15,7 +15,7 @@ class Mlx {
         ];
     }
     
-    public function signIn(array $creds): string {
+    public function signIn(array $creds): array {
         $url = "https://api.multilogin.com/user/signin";
 
         $request = Requests::post($url, $this->headers, json_encode($creds));
@@ -25,9 +25,77 @@ class Mlx {
 
             throw new Exception($message);
         } else {
-            $token = json_decode($request->body)->data->token;
+            $data = json_decode($request->body)->data;
 
+            $token = $data->token;
+            $refreshToken = $data->refresh_token;
+
+            return [$token, $refreshToken];
+        }
+    }
+    
+    public function getWorkspaceId($token, $workspaceName) {
+        $url = "https://api.multilogin.com/user/workspaces";
+
+        $this->headers["Authorization"] = "Bearer $token";
+
+        $request = Requests::get($url, $this->headers);
+
+        if($request->status_code !== 200) {
+            $message = json_decode($request->body)->status->message;
+
+            throw new Exception($message);
+        } else {
+            $workspaces = json_decode($request->body)->data->workspaces;
+      
+            $workspaceId = array_filter($workspaces, function($workspace) use ($workspaceName) {
+                return $workspace->name === $workspaceName;
+            });
+            $workspaceId = $workspaceId[0]->workspace_id;
+
+            return $workspaceId;
+        }
+    }
+
+    public function refreshToken($token, $refreshToken, $email, $workspaceId) {
+        $url = "https://api.multilogin.com/user/refresh_token";
+
+        $this->headers["Authorization"] = "Bearer $token";
+
+        $body = [
+            'email' => $email,
+            'workspace_id' => $workspaceId,
+            'refresh_token' => $refreshToken
+        ];
+
+        $request = Requests::post($url, $this->headers, json_encode($body));
+
+        if($request->status_code !== 200) {
+            $message = json_decode($request->body)->status->message;
+
+            throw new Exception($message);
+        } else {
+            $token = json_decode($request->body)->data->token;
+  
             return $token;
+        }
+    }
+
+    public function getFolderId($token) {
+        $url = "https://api.multilogin.com/workspace/folders";
+
+        $this->headers["Authorization"] = "Bearer $token";
+
+        $request = Requests::get($url, $this->headers);
+
+        if($request->status_code !== 200) {
+            $message = json_decode($request->body)->status->message;
+
+            throw new Exception($message);
+        } else {
+            $folderId = json_decode($request->body)->data->folders[0]->folder_id;
+            var_dump(json_decode($request->body)->data->folders);
+            return $folderId;
         }
     }
 
@@ -72,7 +140,7 @@ class Mlx {
                     "webrtc_masking" => "mask"
                 ],
                 "storage" => [
-                    "is_local" => false,
+                    "is_local" => true,
                     "save_service_worker" => false
                 ]
             ]
@@ -83,14 +151,14 @@ class Mlx {
         $url = "https://api.multilogin.com/profile/create";
 
         $response = Requests::post($url, $this->headers, json_encode($profileSettings));
-
+        
         if($response->status_code !== 201) {
             $message = json_decode($response->body)->status->message;
 
             throw new Exception($message);
         } else {
-            $profileId= json_decode($response->body)->data->ids[0];
-
+            $profileId = json_decode($response->body)->data->ids[0];
+        
             return $profileId;
         }
     }
