@@ -6,6 +6,7 @@
   },
   "require": {
     "symfony/dotenv": "^7.0",
-    "rmccue/requests": "^2.0"
+    "rmccue/requests": "^2.0",
+    "php-webdriver/webdriver": "^1.15"
   }
 }

@@ -2,21 +2,31 @@
 namespace Helpers;
 
 use Exception;
+use Facebook\WebDriver\Remote\DesiredCapabilities;
+use Facebook\WebDriver\Remote\RemoteWebDriver;
 use WpOrg\Requests\Requests;
 
 class Mlx {
     public $headers;
+    public $url;
+    public $profileSettings;
+    public $launcherUrl;
 
-    public function __construct()
+    public function __construct($profileSettings)
     {
         $this->headers = [
             "Content-Type" => "application/json",
             "Accept" => "application/json"
         ];
+
+        $this->url = 'https://api.multilogin.com';
+        $this->launcherUrl = 'https://launcher.mlx.yt:45001/api';
+
+        $this->profileSettings = $profileSettings;
     }
     
     public function signIn(array $creds): array {
-        $url = "https://api.multilogin.com/user/signin";
+        $url = $this->url . "/user/signin";
 
         $request = Requests::post($url, $this->headers, json_encode($creds));
 
@@ -35,7 +45,7 @@ class Mlx {
     }
     
     public function getWorkspaceId($token, $workspaceName) {
-        $url = "https://api.multilogin.com/user/workspaces";
+        $url = $this->url . "/user/workspaces";
 
         $this->headers["Authorization"] = "Bearer $token";
 
@@ -58,7 +68,7 @@ class Mlx {
     }
 
     public function refreshToken($token, $refreshToken, $email, $workspaceId) {
-        $url = "https://api.multilogin.com/user/refresh_token";
+        $url = $this->url . "/user/refresh_token";
 
         $this->headers["Authorization"] = "Bearer $token";
 
@@ -82,7 +92,7 @@ class Mlx {
     }
 
     public function getFolderId($token) {
-        $url = "https://api.multilogin.com/workspace/folders";
+        $url = $this->url . "/workspace/folders";
 
         $this->headers["Authorization"] = "Bearer $token";
 
@@ -94,61 +104,37 @@ class Mlx {
             throw new Exception($message);
         } else {
             $folderId = json_decode($request->body)->data->folders[0]->folder_id;
-            var_dump(json_decode($request->body)->data->folders);
+        
             return $folderId;
         }
     }
 
-    public function createProfile(string $token, array $proxy, int $id, array $extensions, string $folderId, string $browserType = "mimic"): int {
-        $profileSettings =  [
-            "browser_type" => $browserType,
-            "folder_id" => $folderId,
-            "name" => "Profile number $id",
-            "os_type" => "windows",
-            "proxy" => [
-                "host" => $proxy["host"],
-                "type" => $proxy["type"],
-                "port" => $proxy["port"],
-                "username" => $proxy["username"],
-                "password" => $proxy["password"]
-            ],
-            "parameters" => [
-                "fingerprint" => [
-                    "cmd_params" => [
-                        "params" => [
-                            [
-                                "flag" => "load-extension",
-                                "value" => implode(",", $extensions)
-                            ]
-                        ]
+    public function createProfile(string $token, array $proxy, int $id, array $extensions, string $folderId): string {
+        $profileSettings = $this->profileSettings;
+
+        $profileSettings['folder_id'] = $folderId;
+        $profileSettings['name'] = "Profile number $id";
+        $profileSettings['parameters']['proxy'] = [
+            "host" => $proxy["host"],
+            "type" => $proxy["type"],
+            "port" => (int) $proxy["port"],
+            "username" => $proxy["username"],
+            "password" => $proxy["password"]
+        ];
+        $profileSettings['parameters']['fingerprint'] = [
+            "cmd_params" => [
+                "params" => [
+                    [
+                        "flag" => "load-extension",
+                        "value" => implode(",", $extensions)
                     ]
-                ],
-                "flags" => [
-                    "audio_masking" => "mask",
-                    "fonts_masking" => "mask",
-                    "geolocation_masking" => "mask",
-                    "geolocation_popup" => "prompt",
-                    "graphics_masking" => "mask",
-                    "graphics_noise" => "mask",
-                    "localization_masking" => "mask",
-                    "media_devices_masking" => "mask",
-                    "navigator_masking" => "mask",
-                    "ports_masking" => "mask",
-                    "proxy_masking" => "custom",
-                    "screen_masking" => "mask",
-                    "timezone_masking" => "mask",
-                    "webrtc_masking" => "mask"
-                ],
-                "storage" => [
-                    "is_local" => true,
-                    "save_service_worker" => false
                 ]
             ]
         ];
 
         $this->headers["Authorization"] = "Bearer $token";
 
-        $url = "https://api.multilogin.com/profile/create";
+        $url = $this->url . "/profile/create";
 
         $response = Requests::post($url, $this->headers, json_encode($profileSettings));
         
@@ -161,6 +147,122 @@ class Mlx {
         
             return $profileId;
         }
+    }
+
+    public function updateProfile(string $token, string $profileId, array|null $extensions, array|null $proxy = null) {
+        $profileSettings['profile_id'] = $profileId;
+
+        if($proxy) {
+            $profileSettings['parameters']['flags']['proxy_masking'] = 'custom';
+            $profileSettings['proxy'] = [
+                "host" => $proxy["host"],
+                "type" => $proxy["type"],
+                "port" => (int) $proxy["port"],
+                "username" => $proxy["username"],
+                "password" => $proxy["password"]
+            ];
+        }
+
+        if($extensions) {
+            $profileSettings['parameters']['fingerprint'] = [
+                "cmd_params" => [
+                    "params" => [
+                        [
+                            "flag" => "load-extension",
+                            "value" => implode(",", $extensions)
+                        ]
+                    ]
+                ]
+            ];
+        }
+
+        $this->headers["Authorization"] = "Bearer $token";
+
+        $url = $this->url . "/profile/partial_update";
+
+        $response = Requests::post($url, $this->headers, json_encode($profileSettings));
+        
+        if($response->status_code !== 200) {
+            $message = json_decode($response->body)->status->message;
+
+            throw new Exception($message);
+        } else {
+            return $profileId;
+        }
+    }
+
+    public function searchProfile(string $token, string $profileName, string $storage) {
+        $body = [
+            'is_removed' => false,
+            'limit' => 1,
+            'offset' => 0,
+            'search_text' => $profileName,
+            'storage_type' => $storage
+        ];
+       
+        $this->headers["Authorization"] = "Bearer $token";
+
+        $url = $this->url . "/profile/search";
+
+        $response = Requests::post($url, $this->headers, json_encode($body));
+
+        if($response->status_code !== 200) {
+            $message = json_decode($response->body)->status->message;
+
+            throw new Exception($message);
+        } else {
+            $profileId = json_decode($response->body)->data->profiles[0]->id;
+           
+            return $profileId;
+        }
+    }
+
+    public function startProfile(string $token, string $profileId, string $folderId) {
+        $this->headers["Authorization"] = "Bearer $token";
+
+        $url = $this->launcherUrl . "/v2/profile/f/$folderId/p/$profileId/start?automation_type=selenium";
+
+        $response = Requests::get($url, $this->headers);
+
+        if($response->status_code !== 200) {
+            $message = json_decode($response->body)->status->message;
+
+            throw new Exception($message);
+        } else {
+            $profilePort = json_decode($response->body)->data->port;
+           
+            return $profilePort;
+        }
+    }
+
+    public function stopProfile(string $token, string $profileId) {
+        $this->headers["Authorization"] = "Bearer $token";
+
+        $url = $this->launcherUrl . "/v1/profile/stop/p/$profileId";
+
+        $response = Requests::get($url, $this->headers);
+
+        if($response->status_code !== 200) {
+            $message = json_decode($response->body)->status->message;
+          
+            throw new Exception($message);
+        } else {
+            return $profileId;
+        }
+    }
+
+    public function getProfileDriver(string $profilePort, string $browserType = 'mimic'): RemoteWebDriver {     
+        $url = "http://127.0.0.1:$profilePort";
+
+        $driver = null;
+
+        if($browserType === 'mimic') {
+            $driver = RemoteWebDriver::create($url, DesiredCapabilities::chrome());
+        } else {
+            $driver = RemoteWebDriver::create($url, DesiredCapabilities::firefox());
+        }
+
+        return $driver;
     }
 } 
 ?>
