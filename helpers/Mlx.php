@@ -210,7 +210,30 @@ class Mlx {
         }
     }
 
-    public function searchProfile(string $token, string $profileName, string $storage) {
+    public function deleteProfile(string $token, string $profileId, bool $permanently = true) {
+        $body = [
+            "ids" => [
+                $profileId
+            ],
+            "permanently" => $permanently
+        ];
+       
+        $this->headers["Authorization"] = "Bearer $token";
+
+        $url = $this->url . "/profile/remove";
+
+        $response = Requests::post($url, $this->headers, json_encode($body));
+        
+        if($response->status_code !== 200) {
+            $message = json_decode($response->body)->status->message;
+
+            throw new Exception($message);
+        } else {
+            return $profileId;
+        }
+    }
+
+    public function searchProfile(string $token, string $profileName, string $storage, bool $all = false) {
         $body = [
             'is_removed' => false,
             'limit' => 1,
@@ -230,9 +253,15 @@ class Mlx {
 
             throw new Exception($message);
         } else {
-            $profileId = json_decode($response->body)->data->profiles[0]->id;
+            if($all) {
+                $profiles = json_decode($response->body)->data->profiles;
+
+                return $profiles;
+            } else {
+                $profileId = json_decode($response->body)->data->profiles[0]->id;
            
-            return $profileId;
+                return $profileId;
+            }
         }
     }
 
