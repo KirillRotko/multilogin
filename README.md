@@ -31,7 +31,7 @@
 
    Rename the `.env_example` file to `.env`, or create a new `.env` file with the following content:
    You need convert your password in md5 format [here](https://www.md5hashgenerator.com)
-   
+
    ```env
    MLX_EMAIL=youremail@yourdomain.com
    MLX_PASSWORD=VerySecretPassword@123
@@ -116,7 +116,7 @@
 - **visitDuration**: Duration (in seconds) to stay on each website.
 - **visitTimeout**: Timeout (in minutes) before the next batch of visits starts.
 - **moveMouseRandomly**: Boolean to enable or disable random mouse movements.
-- **maxProcesses**: Maximum number of concurrent processes to run.
+- **maxProcesses**: Maximum number of concurrent processes to run. (Not recomemnded to set higher than 5, each one is profile browser. So the higher the value, the more PC resources it will consume)
 
 ## How to install extensions
 
