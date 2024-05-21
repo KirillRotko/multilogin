@@ -19,6 +19,8 @@
     require __DIR__ . '/config.php';
 
     // Run app
+    error_reporting(E_ERROR | E_PARSE);
+    
     $profileSettings = $config['profileSettings'];
         
     $mlx = new Mlx($profileSettings);
@@ -45,6 +47,12 @@
           
             // Get folder id
             $folderId = $mlx->getFolderId($automationToken);
+            
+            if($_SERVER['argv'][1] === '--delete') {
+                deleteProfiles($mlx, $automationToken, $config);
+
+                return;
+            }
 
             if($_SERVER['argv'][1] === '--update') {
                 updateProfiles($mlx, $automationToken, $config);
@@ -191,6 +199,29 @@
                 throw new Exception($e->getMessage());
             }
         } 
+    }
+
+    function deleteProfiles(Mlx $mlx, string $token, array $config) {
+        $storage = $config['profileSettings']['parameters']['storage']['is_local'] ? 'local' : 'cloud';
+        $proxies = $config['proxies'];
+
+        foreach ($proxies as $index => $proxy) {
+            $profileNumber = ++$index;
+
+            echo "Deleting profile number $profileNumber\n";
+
+            $id = $mlx->searchProfile($token, "Profile number $profileNumber", $storage);
+
+            if(!$id) {
+                echo "Profile number $profileNumber not found\n";
+
+                break;
+            }
+
+            $mlx->deleteProfile($token, $id);
+
+            echo "Profile number $profileNumber deleted\n";
+        }
     }
 
     function runProfiles(Mlx $mlx, string $token, string $folderId, array $config) {

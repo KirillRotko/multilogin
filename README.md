@@ -108,6 +108,11 @@
    php main.php --update
    ```
 
+   To delete profiles, use:
+   ```bash
+   php main.php --delete
+   ```
+
 ## Configuration Details
 
 - **extensions**: Array of paths to the browser extensions you want to load.
@@ -116,13 +121,13 @@
 - **visitDuration**: Duration (in seconds) to stay on each website.
 - **visitTimeout**: Timeout (in minutes) before the next batch of visits starts.
 - **moveMouseRandomly**: Boolean to enable or disable random mouse movements.
-- **maxProcesses**: Maximum number of concurrent processes to run. (Not recomemnded to set higher than 5, each one is profile browser. So the higher the value, the more PC resources it will consume)
+- **maxProcesses**: Maximum number of concurrent processes to run. (Not recomemnded to set higher than 5, each one is runningprofile browser. So the higher the value, the more PC resources it will consume)
 
 ## How to install extensions
 
 1. Visit the [Chrome Web Store](https://chromewebstore.google.com/?hl=en-GB).
 2. Choose an extension and copy its ID from the address bar: https://chromewebstore.google.com/detail/extension-name/extension-id
-3. Paste the ID into CRXViewer and select "Download as ZIP".
+3. Paste the ID into [CRXViewer](https://crxviewer.com) and select "Download as ZIP".
 4. Extract your ZIP file into a new folder into extensions folder of the project. 
 5. Open the `config.php` file and write path to your extension folder in the extensions array
 
