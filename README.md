@@ -5,7 +5,7 @@
 1. **Clone the GitHub Repository**
 
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/KirillRotko/multilogin.git
    cd <repository-directory>
    ```
 
