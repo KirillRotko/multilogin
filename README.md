@@ -84,23 +84,6 @@
    ];
    ```
 
-## Configuration Details
-
-- **extensions**: Array of paths to the browser extensions you want to load.
-- **proxies**: Array of proxy configurations. Each proxy should have a `username`, `password`, `host`, `port`, and `type`.
-- **websites**: List of websites to visit.
-- **visitDuration**: Duration (in seconds) to stay on each website.
-- **visitTimeout**: Timeout (in seconds) before the next batch of visits starts.
-- **moveMouseRandomly**: Boolean to enable or disable random mouse movements.
-- **maxProcesses**: Maximum number of concurrent processes to run.
-
-## How to install extensions
-
-1. Visit the [Chrome Web Store](https://chromewebstore.google.com/?hl=en-GB).
-2. Choose an extension and copy its ID from the address bar: https://chromewebstore.google.com/detail/extension-name/extension-id
-3. Paste the ID into CRXViewer and select "Download as ZIP".
-4. Extract your ZIP file into a new folder into extensions folder of the project. 
-
 6. **Run the Application**
 
    You can now run the application with the following command:
@@ -123,5 +106,32 @@
    php main.php --update
    ```
 
+## Configuration Details
+
+- **extensions**: Array of paths to the browser extensions you want to load.
+- **proxies**: Array of proxy configurations. Each proxy should have a `username`, `password`, `host`, `port`, and `type`.
+- **websites**: List of websites to visit.
+- **visitDuration**: Duration (in seconds) to stay on each website.
+- **visitTimeout**: Timeout (in seconds) before the next batch of visits starts.
+- **moveMouseRandomly**: Boolean to enable or disable random mouse movements.
+- **maxProcesses**: Maximum number of concurrent processes to run.
+
+## How to install extensions
+
+1. Visit the [Chrome Web Store](https://chromewebstore.google.com/?hl=en-GB).
+2. Choose an extension and copy its ID from the address bar: https://chromewebstore.google.com/detail/extension-name/extension-id
+3. Paste the ID into CRXViewer and select "Download as ZIP".
+4. Extract your ZIP file into a new folder into extensions folder of the project. 
+5. Open the `config.php` file and write path to your extension folder in the extensions array
+
+```php
+'extensions' => [
+           /* Example - 
+           "/extensions/adblock",
+           "/extensions/colorzilla",
+           "/extensions/pixel-perfect" 
+           */
+       ],
+```
 
 By following these steps, you should be able to successfully configure and run the application. Adjust the settings as necessary to fit your specific use case.
