@@ -276,9 +276,15 @@ class Mlx {
         $driver = null;
 
         if($browserType === 'mimic') {
-            $driver = RemoteWebDriver::create($url, DesiredCapabilities::chrome());
+            $capabilities = DesiredCapabilities::chrome();
+            $capabilities->setCapability('pageLoadStrategy', 'eager');
+
+            $driver = RemoteWebDriver::create($url, $capabilities);
         } else {
-            $driver = RemoteWebDriver::create($url, DesiredCapabilities::firefox());
+            $capabilities = DesiredCapabilities::firefox();
+            $capabilities->setCapability('pageLoadStrategy', 'eager');
+
+            $driver = RemoteWebDriver::create($url, $capabilities);
         }
 
         $timeouts = $driver->manage()->timeouts();
