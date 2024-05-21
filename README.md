@@ -112,7 +112,7 @@
 - **proxies**: Array of proxy configurations. Each proxy should have a `username`, `password`, `host`, `port`, and `type`.
 - **websites**: List of websites to visit.
 - **visitDuration**: Duration (in seconds) to stay on each website.
-- **visitTimeout**: Timeout (in seconds) before the next batch of visits starts.
+- **visitTimeout**: Timeout (in minutes) before the next batch of visits starts.
 - **moveMouseRandomly**: Boolean to enable or disable random mouse movements.
 - **maxProcesses**: Maximum number of concurrent processes to run.
 
