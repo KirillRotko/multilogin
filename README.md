@@ -31,9 +31,9 @@
 
    Rename the `.env_example` file to `.env`, or create a new `.env` file with the following content:
    ```env
-  MLX_EMAIL=youremail@yourdomain.com
-  MLX_PASSWORD=VerySecretPassword@123
-  WORKSPACE_NAME=yourworkspacename
+   MLX_EMAIL=youremail@yourdomain.com
+   MLX_PASSWORD=VerySecretPassword@123
+   WORKSPACE_NAME=yourworkspacename
    ```
 
 5. **Configure the Application**
