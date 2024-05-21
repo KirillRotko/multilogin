@@ -2,10 +2,11 @@
     // Load env variables
     require __DIR__ . '/vendor/autoload.php';
 
-use Facebook\WebDriver\Exception\StaleElementReferenceException;
-use Facebook\WebDriver\Exception\WebDriverException;
-use Facebook\WebDriver\Interactions\WebDriverActions;
-use Facebook\WebDriver\Remote\RemoteWebDriver;
+    use Facebook\WebDriver\Exception\MoveTargetOutOfBoundsException;
+    use Facebook\WebDriver\Exception\StaleElementReferenceException;
+    use Facebook\WebDriver\Exception\WebDriverException;
+    use Facebook\WebDriver\Interactions\WebDriverActions;
+    use Facebook\WebDriver\Remote\RemoteWebDriver;
     use Facebook\WebDriver\WebDriverBy;
     use Facebook\WebDriver\WebDriverExpectedCondition;
     use Symfony\Component\Dotenv\Dotenv;
@@ -44,9 +45,6 @@ use Facebook\WebDriver\Remote\RemoteWebDriver;
           
             // Get folder id
             $folderId = $mlx->getFolderId($automationToken);
-            ini_set('display_errors', 1);
-            ini_set('display_startup_errors', 1);
-            error_reporting(E_ALL);
 
             if($_SERVER['argv'][1] === '--update') {
                 updateProfiles($mlx, $automationToken, $config);
@@ -119,6 +117,9 @@ use Facebook\WebDriver\Remote\RemoteWebDriver;
                             $retryCount++;
 
                             continue;
+                        } catch (MoveTargetOutOfBoundsException $e) {
+                            echo "Error with profile $profileNumber: move target out of bounds\n";
+                            break; 
                         }
                     }
                 
@@ -133,7 +134,7 @@ use Facebook\WebDriver\Remote\RemoteWebDriver;
                 echo "Visited: $website\n";
             }
         } catch(Exception $e) {
-            throw new Exception($e->getMessage());
+            echo "Exception in automation with profile $profileNumber: " . $e->getMessage() . "\n";
         } finally {
             try {
                 $tabs = $driver->getWindowHandles();
@@ -200,28 +201,55 @@ use Facebook\WebDriver\Remote\RemoteWebDriver;
         $websites = $config['websites'];
         $visitDuration = $config['visitDuration'];
         $moveMouse = $config['moveMouseRandomly'];
+        $maxProcesses = $config['maxProcesses'];
+
+        $currentProcesses = 0;
+        $pids = [];
 
         foreach ($proxies as $index => $proxy) {
             $profileNumber = ++$index;
-
             $profileId = $mlx->searchProfile($token, $profileName . " $profileNumber", $storage);
 
-            if($profileId) {
-                try {
-                    echo "Starting profile $profileNumber\n";
+            if ($profileId) {
+                while ($currentProcesses >= $maxProcesses) {
+                    $pid = pcntl_wait($status);
+                    if ($pid > 0) {
+                        $currentProcesses--;
+                    }
+                }
 
-                    $profilePort = $mlx->startProfile($token, $profileId, $folderId);
+                $pid = pcntl_fork();
 
-                    echo "Profile $profileNumber started\n";
+                if ($pid == -1) {
+                    throw new Exception("Could not fork process");
+                } elseif ($pid) {
+                    $currentProcesses++;
+                    $pids[] = $pid;
+                } else {
+                    try {
+                        echo "Starting profile $profileNumber\n";
 
-                    $driver = $mlx->getProfileDriver($profilePort, $browserType);
+                        $profilePort = $mlx->startProfile($token, $profileId, $folderId);
 
-                    automation($driver, $mlx, $token, $profileId, $websites, $profileNumber, $moveMouse, $visitDuration);
-                } catch(Exception $e) {
-                    throw new Exception($e->getMessage());
+                        echo "Profile $profileNumber started\n";
+
+                        $driver = $mlx->getProfileDriver($profilePort, $browserType);
+
+                        automation($driver, $mlx, $token, $profileId, $websites, $profileNumber, $moveMouse, $visitDuration);
+                    } catch(Exception $e) {
+                        echo "Error with profile $profileNumber: " . $e->getMessage() . "\n";
+                    }
+                    exit(0); 
                 }
             } else {
-                throw new Exception("Cant start a profile: a profile with name - " . $profileName . " $profileNumber" . " not found");
+                echo "Cant start a profile: a profile with name - " . $profileName . " $profileNumber" . " not found\n";
+            }
+        }
+
+        while ($currentProcesses > 0) {
+            $pid = pcntl_wait($status);
+            if ($pid > 0) {
+                $currentProcesses--;
             }
         }
     }

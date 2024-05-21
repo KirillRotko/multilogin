@@ -14,9 +14,11 @@ for ($i = 1; $i <= 1000; $i++) {
 
 $config = [
     'extensions' => [
+        /* Example - 
         "/extensions/adblock",
         "/extensions/colorzilla",
-        "/extensions/pixel-perfect"
+        "/extensions/pixel-perfect" 
+        */
     ],
     'proxies' => $proxies,
     'websites' => [
@@ -32,9 +34,10 @@ $config = [
         "https://secretlab.co",
         "https://store.steampowered.com"
     ],
-    'visitDuration' => 3,
-    'visitTimeout' => 3,
+    'visitDuration' => 30,
+    'visitTimeout' => 3600,
     'moveMouseRandomly' => true,
+    'maxProcesses' => 2,
     'profileSettings' => [
         "browser_type" => 'mimic',
         "os_type" => "windows",

@@ -4,6 +4,7 @@ namespace Helpers;
 use Exception;
 use Facebook\WebDriver\Remote\DesiredCapabilities;
 use Facebook\WebDriver\Remote\RemoteWebDriver;
+use Facebook\WebDriver\WebDriverTimeouts;
 use WpOrg\Requests\Requests;
 
 class Mlx {
@@ -103,9 +104,9 @@ class Mlx {
 
             throw new Exception($message);
         } else {
-            $token = json_decode($request->body)->data->token;
+            $newToken = json_decode($request->body)->data->token;
 
-            return $token;
+            return $newToken;
         }
     }
 
@@ -279,6 +280,11 @@ class Mlx {
         } else {
             $driver = RemoteWebDriver::create($url, DesiredCapabilities::firefox());
         }
+
+        $timeouts = $driver->manage()->timeouts();
+        $timeouts->implicitlyWait(360000); 
+        $timeouts->pageLoadTimeout(360000); 
+        $timeouts->setScriptTimeout(360000);
 
         return $driver;
     }
