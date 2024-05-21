@@ -91,6 +91,24 @@ class Mlx {
         }
     }
 
+    public function getAutomationToken($token) {
+        $url = $this->url . "/workspace/automation_token?expiration_period=no_exp";
+
+        $this->headers["Authorization"] = "Bearer $token";
+
+        $request = Requests::get($url, $this->headers);
+
+        if($request->status_code !== 200) {
+            $message = json_decode($request->body)->status->message;
+
+            throw new Exception($message);
+        } else {
+            $token = json_decode($request->body)->data->token;
+
+            return $token;
+        }
+    }
+
     public function getFolderId($token) {
         $url = $this->url . "/workspace/folders";
 

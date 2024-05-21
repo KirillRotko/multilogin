@@ -33,6 +33,8 @@ $config = [
         "https://store.steampowered.com"
     ],
     'visitDuration' => 3,
+    'visitTimeout' => 3,
+    'moveMouseRandomly' => true,
     'profileSettings' => [
         "browser_type" => 'mimic',
         "os_type" => "windows",

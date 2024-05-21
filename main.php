@@ -2,10 +2,13 @@
     // Load env variables
     require __DIR__ . '/vendor/autoload.php';
 
+use Facebook\WebDriver\Exception\StaleElementReferenceException;
+use Facebook\WebDriver\Exception\WebDriverException;
+use Facebook\WebDriver\Interactions\WebDriverActions;
 use Facebook\WebDriver\Remote\RemoteWebDriver;
-use Facebook\WebDriver\WebDriverBy;
-use Facebook\WebDriver\WebDriverExpectedCondition;
-use Symfony\Component\Dotenv\Dotenv;
+    use Facebook\WebDriver\WebDriverBy;
+    use Facebook\WebDriver\WebDriverExpectedCondition;
+    use Symfony\Component\Dotenv\Dotenv;
     use Helpers\Mlx;
 
     $dotenv = new Dotenv();
@@ -27,6 +30,7 @@ use Symfony\Component\Dotenv\Dotenv;
         $proxies = $config['proxies'];
         $extensions = $config['extensions'];
         $workspaceName = $config['workspaceName'];
+        $visitTimeout = $config['visitTimeout'];
 
         try {
             // Sign in
@@ -36,40 +40,93 @@ use Symfony\Component\Dotenv\Dotenv;
             $workspaceId = $mlx->getWorkspaceId($token, $workspaceName);
       
             $newWorkspaceToken = $mlx->refreshToken($token, $refreshToken, $creds['email'], $workspaceId);
+            $automationToken = $mlx->getAutomationToken($newWorkspaceToken);
           
             // Get folder id
-            $folderId = $mlx->getFolderId($newWorkspaceToken);
+            $folderId = $mlx->getFolderId($automationToken);
             ini_set('display_errors', 1);
             ini_set('display_startup_errors', 1);
             error_reporting(E_ALL);
 
             if($_SERVER['argv'][1] === '--update') {
-                updateProfiles($mlx, $newWorkspaceToken, $config);
+                updateProfiles($mlx, $automationToken, $config);
 
                 return;
             }
 
             if($_SERVER['argv'][1] !== '--run') {
-                createProfiles($mlx, $newWorkspaceToken, $folderId, $proxies, $extensions);
+                createProfiles($mlx, $automationToken, $folderId, $proxies, $extensions);
             }
 
             if($_SERVER['argv'][1] === '--run' || !isset($_SERVER['argv'][1])) {
-                runProfiles($mlx, $newWorkspaceToken, $folderId, $config);
+                while(true) {
+                    runProfiles($mlx, $automationToken, $folderId, $config);
 
-                return;
+                    echo "Next launch of profiles will be in $visitTimeout minutes\n";
+
+                    $visitTimeoutInSeconds = $visitTimeout * 60;
+
+                    sleep($visitTimeoutInSeconds);
+                }
             }
         } catch(Exception $e) {
-            echo $e->getMessage();
+            echo $e->getMessage() . "\n";
         }
     }
 
-    function automation(RemoteWebDriver $driver, Mlx $mlx, string $token, string $profileId, array $websites, int $visitDuration = 5) {
+    function automation(RemoteWebDriver $driver, Mlx $mlx, string $token, string $profileId, array $websites, int $profileNumber, bool $moveMouse = true, int $visitDuration = 5) {
         try {
+            $tabs = $driver->getWindowHandles();
+
             foreach($websites as $website) {
+                $driver->switchTo()->window($tabs[0]);
+
                 echo "Navigating to: $website\n";
 
-                $driver = $driver->get($website);
+                $driver->get($website);
+
+                $driver->switchTo()->window($tabs[0]);
+
+                if($moveMouse) {
+                    echo "Moving mouse randomly\n";
+
+                    $actions = new WebDriverActions($driver);
                 
+                    $maxRetry = 3;
+                    $retryCount = 0;
+                    $isSuccess = false;
+                
+                    while (!$isSuccess && $retryCount < $maxRetry) {
+                        try {
+                            $divs = $driver->findElements(WebDriverBy::tagName('div'));
+                
+                            $visibleDivs = array_filter($divs, function ($div) {
+                                return $div->isDisplayed();
+                            });
+                
+                            if (!empty($visibleDivs)) {
+                                $randomIndices = array_rand($visibleDivs, rand(1, min(5, count($visibleDivs))));
+                
+                                foreach ((array)$randomIndices as $index) {
+                                    $randomDiv = $visibleDivs[$index];
+                                    $actions->moveToElement($randomDiv)->perform();
+                                    usleep(500000);
+                                }
+                
+                                $isSuccess = true;
+                            }
+                        } catch (StaleElementReferenceException $e) {
+                            $retryCount++;
+
+                            continue;
+                        }
+                    }
+                
+                    if (!$isSuccess) {
+                        echo "Failed to perform mouse movements after multiple attempts.\n";
+                    }
+                }
+
                 echo "Sleeping for " . ($visitDuration) . " seconds...\n";
                 sleep($visitDuration);
     
@@ -78,18 +135,34 @@ use Symfony\Component\Dotenv\Dotenv;
         } catch(Exception $e) {
             throw new Exception($e->getMessage());
         } finally {
+            try {
+                $tabs = $driver->getWindowHandles();
+
+                foreach ($tabs as $tab) {
+                    $driver->switchTo()->window($tab);
+                    $driver->close();
+                }
+            } catch (WebDriverException $e) {
+                echo "Exception caught while closing tabs in finally block: " . $e->getMessage() . "\n";
+            }
+            
             $driver->quit();
             $mlx->stopProfile($token, $profileId);
 
-            echo "Profile stopped";
+            echo "Profile $profileNumber stopped\n";
         }
     }
     
     function createProfiles(Mlx $mlx, string $token, string $folderId, array $proxies, array $extensions) {
         foreach ($proxies as $index => $proxy) {
-            $profileId = $mlx->createProfile($token, $proxy, $index + 1, $extensions, $folderId);
-        
-            break;
+            try {
+                $mlx->createProfile($token, $proxy, $index + 1, $extensions, $folderId);
+                $profileNumber = $index + 1;
+    
+                echo "Profile $profileNumber created\n";
+            } catch(Exception $e) {
+                throw new Exception($e->getMessage());
+            }
         }
     }
 
@@ -101,21 +174,22 @@ use Symfony\Component\Dotenv\Dotenv;
 
         foreach ($proxies as $index => $proxy) {
             $profileNumber = ++$index;
+            $profileId = null;
 
-            $profileId = $mlx->searchProfile($token, $profileName . " $profileNumber", $storage);
+            try {
+                $profileId = $mlx->searchProfile($token, $profileName . " $profileNumber", $storage);
 
-            if($profileId) {
-                try {
+                if($profileId) {
                     $mlx->updateProfile($token, $profileId, $extensions, $proxy);
-                } catch(Exception $e) {
-                    throw new Exception($e->getMessage());
+
+                    echo "Profile $profileNumber updated\n";
+                } else {
+                    throw new Exception("Cant update a profile: a profile with name - " . $profileName . " $profileNumber" . " not found");
                 }
-            } else {
-                throw new Exception("Cant update a profile: a profile with name - " . $profileName . " $profileNumber" . " not found");
+            } catch(Exception $e) {
+                throw new Exception($e->getMessage());
             }
-      
-            break;
-        }
+        } 
     }
 
     function runProfiles(Mlx $mlx, string $token, string $folderId, array $config) {
@@ -125,6 +199,7 @@ use Symfony\Component\Dotenv\Dotenv;
         $profileName = "Profile number";
         $websites = $config['websites'];
         $visitDuration = $config['visitDuration'];
+        $moveMouse = $config['moveMouseRandomly'];
 
         foreach ($proxies as $index => $proxy) {
             $profileNumber = ++$index;
@@ -133,10 +208,15 @@ use Symfony\Component\Dotenv\Dotenv;
 
             if($profileId) {
                 try {
+                    echo "Starting profile $profileNumber\n";
+
                     $profilePort = $mlx->startProfile($token, $profileId, $folderId);
+
+                    echo "Profile $profileNumber started\n";
+
                     $driver = $mlx->getProfileDriver($profilePort, $browserType);
 
-                    automation($driver, $mlx, $token, $profileId, $websites, $visitDuration);
+                    automation($driver, $mlx, $token, $profileId, $websites, $profileNumber, $moveMouse, $visitDuration);
                 } catch(Exception $e) {
                     throw new Exception($e->getMessage());
                 }
