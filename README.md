@@ -30,7 +30,6 @@
 4. **Setup Environment File**
 
    Rename the `.env_example` file to `.env`, or create a new `.env` file with the following content:
-   You need convert your password in md5 format [here](https://www.md5hashgenerator.com)
 
    ```env
    MLX_EMAIL=youremail@yourdomain.com
