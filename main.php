@@ -34,6 +34,7 @@
         $extensions = $config['extensions'];
         $workspaceName = $config['workspaceName'];
         $visitTimeout = $config['visitTimeout'];
+        $creds['password'] = md5($creds['password']);
 
         try {
             // Sign in
