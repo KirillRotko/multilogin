@@ -35,6 +35,7 @@
         $workspaceName = $config['workspaceName'];
         $visitTimeout = $config['visitTimeout'];
         $creds['password'] = md5($creds['password']);
+        $quick = $config['quick'];
 
         try {
             // Sign in
@@ -67,7 +68,7 @@
 
             if($_SERVER['argv'][1] === '--run' || !isset($_SERVER['argv'][1])) {
                 while(true) {
-                    runProfiles($mlx, $automationToken, $folderId, $config);
+                    runProfiles($mlx, $automationToken, $folderId, $config, $quick);
 
                     echo "Next launch of profiles will be in $visitTimeout minutes\n";
 
@@ -225,7 +226,7 @@
         }
     }
 
-    function runProfiles(Mlx $mlx, string $token, string $folderId, array $config) {
+    function runProfiles(Mlx $mlx, string $token, string $folderId, array $config, bool $quick) {
         $proxies = $config['proxies'];
         $storage = $config['profileSettings']['parameters']['storage']['is_local'] ? 'local' : 'cloud';
         $browserType = $config['profileSettings']['browser_type'];
@@ -234,6 +235,7 @@
         $visitDuration = $config['visitDuration'];
         $moveMouse = $config['moveMouseRandomly'];
         $maxProcesses = $config['maxProcesses'];
+        $extensions = $config['extensions'];
 
         $currentProcesses = 0;
         $pids = [];
@@ -261,7 +263,13 @@
                     try {
                         echo "Starting profile $profileNumber\n";
 
-                        $profilePort = $mlx->startProfile($token, $profileId, $folderId);
+                        $profilePort = null;
+
+                        if($quick) {
+                            $profilePort = $mlx->startQuickProfile($token, false, $extensions, $proxy);
+                        } else {
+                            $profilePort = $mlx->startProfile($token, $profileId, $folderId);
+                        }
 
                         echo "Profile $profileNumber started\n";
 

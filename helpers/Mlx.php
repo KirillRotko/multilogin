@@ -283,6 +283,59 @@ class Mlx {
         }
     }
 
+    public function startQuickProfile(string $token, bool $isHeadless, array|null $extensions, array|null $proxy = null) {
+        $profileSettings = $this->profileSettings;
+    
+        $profileSettings['automation'] = 'selenium';
+        $profileSettings['is_headless'] = $isHeadless;
+    
+        if ($proxy) {
+            $profileSettings['proxy'] = [
+                "host" => $proxy["host"],
+                "type" => $proxy["type"],
+                "port" => (int) $proxy["port"],
+                "username" => $proxy["username"],
+                "password" => $proxy["password"]
+            ];
+        }
+    
+        if(count($extensions)) {
+            $profileSettings['parameters']['fingerprint'] = [
+                "cmd_params" => [
+                    "params" => [
+                        [
+                            "flag" => "load-extension",
+                            "value" => implode(",", $extensions)
+                        ]
+                    ]
+                ]
+            ];
+        }
+    
+        $this->headers["Authorization"] = "Bearer $token";
+    
+        $url = $this->launcherUrl . "/v1/profile/quick";
+    
+        $jsonBody = json_encode($profileSettings);
+    
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new Exception('JSON encode error: ' . json_last_error_msg());
+        }
+    
+        $response = Requests::post($url, $this->headers, $jsonBody);
+
+        if($response->status_code !== 200) {
+            var_dump($response);
+            $message = json_decode($response->body)->status->message;
+    
+            throw new Exception($message);
+        } else {
+            $profilePort = json_decode($response->body)->status->message;
+    
+            return $profilePort;
+        }
+    }
+
     public function stopProfile(string $token, string $profileId) {
         $this->headers["Authorization"] = "Bearer $token";
 
