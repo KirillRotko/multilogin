@@ -132,14 +132,18 @@ class Mlx {
         $profileSettings = $this->profileSettings;
 
         $profileSettings['folder_id'] = $folderId;
-        $profileSettings['name'] = "Profile number $id";
-        $profileSettings['parameters']['proxy'] = [
-            "host" => $proxy["host"],
-            "type" => $proxy["type"],
-            "port" => (int) $proxy["port"],
-            "username" => $proxy["username"],
-            "password" => $proxy["password"]
-        ];
+        $profileSettings['name'] = "Profilee number $id";
+        
+        if($proxy['host']) {
+            $profileSettings['parameters']['proxy'] = [
+                "host" => $proxy["host"],
+                "type" => $proxy["type"],
+                "port" => (int) $proxy["port"],
+                "username" => $proxy["username"],
+                "password" => $proxy["password"]
+            ];
+        }
+ 
         $profileSettings['parameters']['fingerprint'] = [
             "cmd_params" => [
                 "params" => [
@@ -265,10 +269,10 @@ class Mlx {
         }
     }
 
-    public function startProfile(string $token, string $profileId, string $folderId) {
+    public function startProfile(string $token, string $profileId, string $folderId, string $headlessMode) {
         $this->headers["Authorization"] = "Bearer $token";
 
-        $url = $this->launcherUrl . "/v2/profile/f/$folderId/p/$profileId/start?automation_type=selenium";
+        $url = $this->launcherUrl . "/v2/profile/f/$folderId/p/$profileId/start?automation_type=selenium&headless_mode=$headlessMode";
 
         $response = Requests::get($url, $this->headers);
 
@@ -278,7 +282,7 @@ class Mlx {
             throw new Exception($message);
         } else {
             $profilePort = json_decode($response->body)->data->port;
-           
+      
             return $profilePort;
         }
     }
@@ -325,7 +329,6 @@ class Mlx {
         $response = Requests::post($url, $this->headers, $jsonBody);
 
         if($response->status_code !== 200) {
-            var_dump($response);
             $message = json_decode($response->body)->status->message;
     
             throw new Exception($message);
@@ -352,6 +355,22 @@ class Mlx {
         }
     }
 
+    public function unlockProfiles($token) {
+        $this->headers["Authorization"] = "Bearer $token";
+
+        $url = $this->url . "/bpds/profile/unlock_profiles";
+
+        $response = Requests::get($url, $this->headers);
+
+        if($response->status_code !== 200) {
+            $message = json_decode($response->body)->status->message;
+          
+            throw new Exception($message);
+        } else {
+            return 200;
+        }
+    }
+
     public function getProfileDriver(string $profilePort, string $browserType = 'mimic'): RemoteWebDriver {     
         $url = "http://127.0.0.1:$profilePort";
 
@@ -361,18 +380,15 @@ class Mlx {
             $capabilities = DesiredCapabilities::chrome();
             $capabilities->setCapability('pageLoadStrategy', 'eager');
 
-            $driver = RemoteWebDriver::create($url, $capabilities);
+            $driver = RemoteWebDriver::create($url, $capabilities, 9000000, 90000000);
         } else {
             $capabilities = DesiredCapabilities::firefox();
             $capabilities->setCapability('pageLoadStrategy', 'eager');
 
-            $driver = RemoteWebDriver::create($url, $capabilities);
+            $driver = RemoteWebDriver::create($url, $capabilities, 90000000, 90000000);
         }
 
-        $timeouts = $driver->manage()->timeouts();
-        $timeouts->implicitlyWait(360000); 
-        $timeouts->pageLoadTimeout(360000); 
-        $timeouts->setScriptTimeout(360000);
+        $driver->manage()->timeouts()->implicitlyWait(10000000); 
 
         return $driver;
     }

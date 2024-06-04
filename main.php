@@ -9,7 +9,8 @@
     use Facebook\WebDriver\Remote\RemoteWebDriver;
     use Facebook\WebDriver\WebDriverBy;
     use Facebook\WebDriver\WebDriverExpectedCondition;
-    use Symfony\Component\Dotenv\Dotenv;
+use Facebook\WebDriver\WebDriverKeys;
+use Symfony\Component\Dotenv\Dotenv;
     use Helpers\Mlx;
 
     $dotenv = new Dotenv();
@@ -17,6 +18,8 @@
 
     // Load config
     require __DIR__ . '/config.php';
+    ini_set('max_execution_time', -1);
+    ini_set('memory_limit', -1);
 
     // Run app
     error_reporting(E_ERROR | E_PARSE);
@@ -57,7 +60,7 @@
             }
 
             if($_SERVER['argv'][1] === '--update') {
-                updateProfiles($mlx, $automationToken, $config);
+                updateProfiles($mlx, $automationToken, $config, $refreshToken, $workspaceId);
 
                 return;
             }
@@ -68,7 +71,11 @@
 
             if($_SERVER['argv'][1] === '--run' || !isset($_SERVER['argv'][1])) {
                 while(true) {
-                    runProfiles($mlx, $automationToken, $folderId, $config, $quick);
+                    $loggedIn = false;
+
+                    runProfiles($mlx, $automationToken, $folderId, $config, $quick, $refreshToken, $workspaceId, $loggedIn);
+
+                    $loggedIn = true;
 
                     echo "Next launch of profiles will be in $visitTimeout minutes\n";
 
@@ -82,8 +89,12 @@
         }
     }
 
-    function automation(RemoteWebDriver $driver, Mlx $mlx, string $token, string $profileId, array $websites, int $profileNumber, bool $moveMouse = true, int $visitDuration = 5) {
+    function automation(RemoteWebDriver $driver, Mlx $mlx, string $token, string $profileId, array $websites, int $profileNumber, bool $moveMouse = true, bool $googleLogin = false, $googleProfile = null, int $visitDuration = 5) {
         try {
+            if($googleLogin) {
+              loginGoogle($driver, $googleProfile);
+            }
+
             $tabs = $driver->getWindowHandles();
 
             foreach($websites as $website) {
@@ -177,30 +188,49 @@
         }
     }
 
-    function updateProfiles(Mlx $mlx, string $token, array $config) {
+    function updateProfiles(Mlx $mlx, string $token, array $config, $refreshToken, $workspaceId) {
         $proxies = $config['proxies'];
         $extensions = $config['extensions'];
         $storage = $config['profileSettings']['parameters']['storage']['is_local'] ? 'local' : 'cloud';
-        $profileName = "Profile number";
-
+        $profileName = "Profilee number";
+        $creds = $config['creds'];
+    
         foreach ($proxies as $index => $proxy) {
             $profileNumber = ++$index;
             $profileId = null;
+    
+            $retry = true;
 
-            try {
-                $profileId = $mlx->searchProfile($token, $profileName . " $profileNumber", $storage);
+            while ($retry) {
+                try {
+                    $profileId = $mlx->searchProfile($token, $profileName . " $profileNumber", $storage);
+    
+                    if ($profileId) {
+                        $mlx->updateProfile($token, $profileId, $extensions, $proxy);
+                        echo "Profile $profileNumber updated\n";
 
-                if($profileId) {
-                    $mlx->updateProfile($token, $profileId, $extensions, $proxy);
+                        $retry = false; 
+                    } else {
+                        throw new Exception("Cant update a profile: a profile with name - " . $profileName . " $profileNumber not found");
+                    }
+                } catch (Exception $e) {
+                    if ($e->getMessage() === 'unauthorized' || $e->getMessage() === 'Wrong JWT token') {
+                        try {
+                            $newWorkspaceToken = $mlx->refreshToken($token, $refreshToken, $creds['email'], $workspaceId);
+                            $token = $mlx->getAutomationToken($newWorkspaceToken);
 
-                    echo "Profile $profileNumber updated\n";
-                } else {
-                    throw new Exception("Cant update a profile: a profile with name - " . $profileName . " $profileNumber" . " not found");
+                            echo "Token updated\n";
+                        } catch (Exception $tokenException) {
+                            echo "Failed to get new token: " . $tokenException->getMessage() . "\n";
+                            break; 
+                        }
+                    } else {
+                        echo "Error updating profile $profileNumber: " . $e->getMessage() . "\n";
+                        break; 
+                    }
                 }
-            } catch(Exception $e) {
-                throw new Exception($e->getMessage());
             }
-        } 
+        }
     }
 
     function deleteProfiles(Mlx $mlx, string $token, array $config) {
@@ -212,7 +242,7 @@
 
             echo "Deleting profile number $profileNumber\n";
 
-            $id = $mlx->searchProfile($token, "Profile number $profileNumber", $storage);
+            $id = $mlx->searchProfile($token, "Profilee number $profileNumber", $storage);
 
             if(!$id) {
                 echo "Profile number $profileNumber not found\n";
@@ -226,24 +256,30 @@
         }
     }
 
-    function runProfiles(Mlx $mlx, string $token, string $folderId, array $config, bool $quick) {
+    function runProfiles(Mlx $mlx, string $token, string $folderId, array $config, bool $quick, $refreshToken, $workspaceId, $loggedIn = false) {
         $proxies = $config['proxies'];
         $storage = $config['profileSettings']['parameters']['storage']['is_local'] ? 'local' : 'cloud';
         $browserType = $config['profileSettings']['browser_type'];
-        $profileName = "Profile number";
+        $profileName = "Profilee number";
         $websites = $config['websites'];
         $visitDuration = $config['visitDuration'];
         $moveMouse = $config['moveMouseRandomly'];
         $maxProcesses = $config['maxProcesses'];
         $extensions = $config['extensions'];
+        $creds = $config['email'];
+        $googleLogin =  $loggedIn ? $loggedIn : $config['googleLogin'];
 
+        $googleProfiles = $googleLogin ? getGoogleProfilesFromFile('gmail_accounts.txt') : null;
+    
+        $mlx->unlockProfiles($token);
+    
         $currentProcesses = 0;
         $pids = [];
-
+    
         foreach ($proxies as $index => $proxy) {
             $profileNumber = ++$index;
-            $profileId = $mlx->searchProfile($token, $profileName . " $profileNumber", $storage);
-
+            $profileId = !$quick ? $mlx->searchProfile($token, $profileName . " $profileNumber", $storage) : 'yes';
+    
             if ($profileId) {
                 while ($currentProcesses >= $maxProcesses) {
                     $pid = pcntl_wait($status);
@@ -251,9 +287,9 @@
                         $currentProcesses--;
                     }
                 }
-
+    
                 $pid = pcntl_fork();
-
+    
                 if ($pid == -1) {
                     throw new Exception("Could not fork process");
                 } elseif ($pid) {
@@ -262,35 +298,169 @@
                 } else {
                     try {
                         echo "Starting profile $profileNumber\n";
-
-                        $profilePort = null;
-
-                        if($quick) {
-                            $profilePort = $mlx->startQuickProfile($token, false, $extensions, $proxy);
+    
+                        $headlessMode = 'false';
+    
+                        if ((int)$profileNumber % (int)$maxProcesses === 0) {
+                            $headlessMode = $quick ? false : 'false';
                         } else {
-                            $profilePort = $mlx->startProfile($token, $profileId, $folderId);
+                            $headlessMode = $quick ? true : 'true';
                         }
-
+    
+                        $profilePort = null;
+    
+                        if ($quick) {
+                            $profilePort = $mlx->startQuickProfile($token, $headlessMode, $extensions, $proxy);
+                        } else {
+                            $profilePort = $mlx->startProfile($token, $profileId, $folderId, $headlessMode);
+                        }
+    
+                        sleep(20);
                         echo "Profile $profileNumber started\n";
+    
+                        if ($proxy['host']) {
+                            $driver = $mlx->getProfileDriver($profilePort, $browserType);
 
-                        $driver = $mlx->getProfileDriver($profilePort, $browserType);
-
-                        automation($driver, $mlx, $token, $profileId, $websites, $profileNumber, $moveMouse, $visitDuration);
-                    } catch(Exception $e) {
-                        echo "Error with profile $profileNumber: " . $e->getMessage() . "\n";
+                            automation($driver, $mlx, $token, $profileId, $websites, $profileNumber, $moveMouse, $googleLogin, $googleProfiles[(int) $profileNumber - 1], $visitDuration);
+                        } else {
+                            $mlx->stopProfile($token, $profileId);
+    
+                            echo "Profile $profileNumber stopped\n";
+                        }
+                    } catch (Exception $e) {
+                        if ($e->getMessage() === 'unauthorized' || $e->getMessage() === 'Wrong JWT token') {
+                            try {
+                                $newWorkspaceToken = $mlx->refreshToken($token, $refreshToken, $creds['email'], $workspaceId);
+                                $token = $mlx->getAutomationToken($newWorkspaceToken);
+    
+                                echo "Token refreshed, retrying...\n";
+                            } catch (Exception $tokenException) {
+                                echo "Failed to get new token: " . $tokenException->getMessage() . "\n";
+                                exit(1); 
+                            }
+                        } else {
+                            echo "Error with profile $profileNumber: " . $e->getMessage() . "\n";
+                            exit(1); 
+                        }
                     }
-                    exit(0); 
+                    exit(0);
                 }
             } else {
                 echo "Cant start a profile: a profile with name - " . $profileName . " $profileNumber" . " not found\n";
             }
         }
-
+    
         while ($currentProcesses > 0) {
             $pid = pcntl_wait($status);
             if ($pid > 0) {
                 $currentProcesses--;
             }
         }
+    }
+
+    function loadProxiesFromFile($filePath) {
+        $proxies = [];
+        
+        $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        
+        foreach ($lines as $line) {
+            list($host, $port, $username, $password) = explode(':', $line);
+            
+            $proxies[] = [
+                'username' => $username,
+                'password' => $password,
+                'host' => $host,
+                'port' => $port,
+                'type' => 'http'
+            ];
+        }
+        
+        return $proxies;
+    }
+
+    function getGoogleProfilesFromFile($filePath) {
+        $profiles = [];
+        
+        $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        
+        foreach ($lines as $line) {
+            list($email, $password, $verificationEmail) = explode(':', $line);
+            
+            $profiles[] = [
+                'email' => $email,
+                'password' => $password,
+                'verificationEmail' => $verificationEmail,
+            ];
+        }
+        
+        return $profiles;
+    }
+
+    function loginGoogle($driver, $profile) {
+            echo "Log in google... \n";
+
+            $driver->get('https://www.google.com/search?q=fsd');
+  
+            $driver->wait()->until(
+                WebDriverExpectedCondition::presenceOfElementLocated(WebDriverBy::cssSelector("a[href*='https://accounts.google.com/ServiceLogin']"))
+            );
+
+            echo "Visiting log in page... \n";
+            
+            $signIn = $driver->findElement(WebDriverBy::cssSelector("a[href*='https://accounts.google.com/ServiceLogin']"));
+            $signIn->click();
+
+            $driver->wait()->until(
+                WebDriverExpectedCondition::presenceOfElementLocated(WebDriverBy::cssSelector('input[type="email"]'))
+            );
+
+            echo "Filling a form... \n";
+            echo "Filling an email... \n";
+
+            // Input email
+            $emailField = $driver->findElement(WebDriverBy::cssSelector('input[type="email"]'));
+            $emailField->sendKeys($profile['email']);
+            $emailField->sendKeys(WebDriverKeys::ENTER);
+          
+            // Wait for the password field to be present
+            $driver->wait()->until(
+                WebDriverExpectedCondition::presenceOfElementLocated(WebDriverBy::cssSelector('input[type="password"]'))
+            );
+            sleep(2);
+
+            echo "Filling a password... \n";
+    
+            // Input password
+            $passwordField = $driver->findElement(WebDriverBy::cssSelector('input[type="password"]'));
+            $passwordField->sendKeys($profile['password']);
+            $passwordField->sendKeys(WebDriverKeys::ENTER);
+   
+            // Wait for the verification options to be present
+            $driver->wait()->until(
+                WebDriverExpectedCondition::elementToBeClickable(WebDriverBy::cssSelector('ul li:nth-child(3)'))
+            );
+            
+            echo "Selecting verification method... \n";
+    
+            // Select verification method
+            $verificationOption = $driver->findElement(WebDriverBy::cssSelector('ul li:nth-child(3)'));
+            $verificationOption->click();
+    
+            // Wait for the verification email field to be present
+            $driver->wait()->until(
+                WebDriverExpectedCondition::presenceOfElementLocated(WebDriverBy::cssSelector('input[type="email"]'))
+            );
+    
+            echo "Filling a verification email... \n";
+
+            // Input verification email
+            $verificationEmailField = $driver->findElement(WebDriverBy::cssSelector('input[type="email"]'));
+            $verificationEmailField->sendKeys($profile['verificationEmail']);
+            $verificationEmailField->sendKeys(WebDriverKeys::ENTER);
+
+            echo "Logged in \n";
+    
+            // Wait for the login process to complete (adjust as needed)
+            sleep(5);
     }
 ?> 
