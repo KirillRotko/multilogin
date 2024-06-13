@@ -133,7 +133,7 @@ class Mlx {
 
         $profileSettings['folder_id'] = $folderId;
         $profileSettings['name'] = "Profilee number $id";
-        
+         
         if($proxy['host']) {
             $profileSettings['parameters']['proxy'] = [
                 "host" => $proxy["host"],
@@ -143,7 +143,6 @@ class Mlx {
                 "password" => $proxy["password"]
             ];
         }
- 
         $profileSettings['parameters']['fingerprint'] = [
             "cmd_params" => [
                 "params" => [
@@ -378,17 +377,15 @@ class Mlx {
 
         if($browserType === 'mimic') {
             $capabilities = DesiredCapabilities::chrome();
-            $capabilities->setCapability('pageLoadStrategy', 'eager');
+            $capabilities->setCapability('pageLoadStrategy', 'none');
 
-            $driver = RemoteWebDriver::create($url, $capabilities, 9000000, 90000000);
+            $driver = RemoteWebDriver::create($url, $capabilities);
         } else {
             $capabilities = DesiredCapabilities::firefox();
-            $capabilities->setCapability('pageLoadStrategy', 'eager');
+            $capabilities->setCapability('pageLoadStrategy', 'none');
 
-            $driver = RemoteWebDriver::create($url, $capabilities, 90000000, 90000000);
+            $driver = RemoteWebDriver::create($url, $capabilities);
         }
-
-        $driver->manage()->timeouts()->implicitlyWait(10000000); 
 
         return $driver;
     }

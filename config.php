@@ -2,7 +2,7 @@
 // Set 1000 different proxies
 $proxies = [];
 
-for ($i = 1; $i <= 1000; $i++) {
+for ($i = 1; $i <= 100; $i++) {
     $proxies[] = [
         'username' => "rtixxerh-$i",
         'password' => '72szql5eb4bh',
@@ -14,30 +14,58 @@ for ($i = 1; $i <= 1000; $i++) {
 
 $config = [
     'extensions' => [
-        /* Example - 
-        "/extensions/adblock",
-        "/extensions/colorzilla",
-        "/extensions/pixel-perfect" 
-        */
+        // '/extensions/ad',
+        // '/extensions/ad+',
+        // '/extensions/adyoutube',
+        // '/extensions/similarweb',
     ],
+    'quick' => false,
     'proxies' => $proxies,
     'websites' => [
         "https://wikipedia.org/",
-        "https://multilogin.com/",
-        "https://dell.com/",
-        "https://reddit.com/",
-        "https://youtube.com/",
-        "https://www.twitch.tv",
-        "https://discord.com",
-        "https://www.amazon.com",
-        "https://hyperx.com",
-        "https://secretlab.co",
-        "https://store.steampowered.com"
+        "https://naver.com/",
+        "https://globo.com/",
+        "https://qq.com/",
+        "https://cnn.com/",
+        "https://bbc.com/",
+        "https://news.google.com/",
+        "https://theguardian.com/",
+        "https://infobae.com/",
+        "https://indiatimes.com/",
+        "https://foxnews.com/",
+        "https://douyin.com/",
+        "https://hindustantimes.com/",
+        "https://sohu.com/",
+        "https://news18.com/",
+        "https://news.naver.com/",
+        "https://kompas.com/",
+        "https://people.com/",
+        "https://ndtv.com/",
+        "https://usatoday.com/",
+        "https://forbes.com/",
+        "https://indianexpress.com/",
+        "https://tribunnews.com/",
+        "https://detik.com/",
+        "https://washingtonpost.com/",
+        "https://cnbc.com/",
+        "https://bbc.co.uk/",
+        "https://dailymail.co.uk/",
+        "https://vnexpress.net/",  
     ],
-    'visitDuration' => 30,
-    'visitTimeout' => 3600,
-    'moveMouseRandomly' => true,
-    'maxProcesses' => 2,
+    'visitDuration' => 650,
+    'visitTimeout' => 'everyday',
+    'moveMouseRandomly' => false,
+    'clickLinks' => false,
+    'randomWebsitesCount' => false,
+    'googleLogin' => true,
+    'inAFewMinutes' => [
+        'visitDuration' => 900, 
+        'websites' => ['https://dmn-anal4.site/page.php?d=2&p=5'], 
+        'minutes' => 0, 
+        'moveMouseRandomly' => false,
+        'clickLinks' => false,
+    ],
+    'maxProcesses' => 10,
     'profileSettings' => [
         "browser_type" => 'mimic',
         "os_type" => "windows",
@@ -59,7 +87,7 @@ $config = [
                 "webrtc_masking" => "mask"
             ],
             "storage" => [
-                "is_local" => true,
+                "is_local" => false,
                 "save_service_worker" => false
             ]
         ]

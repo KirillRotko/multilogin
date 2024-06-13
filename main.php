@@ -93,6 +93,9 @@ use Symfony\Component\Dotenv\Dotenv;
                             $targetTime = $currentTime + ($visitTimeout * 60);
 
                             $finished = true;
+                        } else {
+                            $timeLeft = $targetTime - $currentTime;
+                            echo "Time left until special event: $timeLeft seconds\n";
                         }
                     }
 
@@ -103,11 +106,20 @@ use Symfony\Component\Dotenv\Dotenv;
 
                         return;
                     } else {
-                        echo "Next launch of profiles will be in $visitTimeout minutes\n";
+                        if ($visitTimeout === 'everyday') {
+                            $now = time();
+                            $nextMidnight = strtotime('tomorrow midnight');
+                            $secondsToMidnight = $nextMidnight - $now;
+                
+                            echo "Next launch of profiles will be tomorrow at midnight\n";
+                            sleep($secondsToMidnight);
+                        } else {
+                            echo "Next launch of profiles will be in $visitTimeout minutes\n";
 
-                        $visitTimeoutInSeconds = $visitTimeout * 60;
-    
-                        sleep($visitTimeoutInSeconds);
+                            $visitTimeoutInSeconds = $visitTimeout * 60;
+        
+                            sleep($visitTimeoutInSeconds);
+                        }
                     }
                 }
             }
@@ -142,15 +154,20 @@ use Symfony\Component\Dotenv\Dotenv;
                 
                     $maxRetry = rand(2, 5);
                     $retryCount = 0;
-                    $isSuccess = rand(2, 5);
+                    $isSuccess = rand(2, 3);
                     $start = 0;
                 
                     while ($start < $isSuccess && $retryCount < $maxRetry) {
                         try {
                             $links = $driver->findElements(WebDriverBy::tagName('a'));
-                     
+
                             $clickableLinks = array_filter($links, function ($link) {
-                                return $link->isDisplayed() && $link->isEnabled();
+                                try {
+                                    $target = $link->getAttribute('target');
+                                    return $target !== '_blank' && $link->isDisplayed() && $link->isEnabled();
+                                } catch (Exception $e) {
+                                    return false;
+                                }
                             });
                 
                             if (!empty($clickableLinks)) {
@@ -162,30 +179,34 @@ use Symfony\Component\Dotenv\Dotenv;
 
                                 $start += 1;
 
-                                sleep(rand(5, 10));
+                                sleep(rand(5, 8));
+                            } else {
+                                break;
                             }
                         } catch (StaleElementReferenceException $e) {
+                            echo "Element click intercepted: Trying another link...\n";
                             $retryCount++;
                             continue;
                         } catch (MoveTargetOutOfBoundsException $e) {
                             echo "Error with profile $profileNumber: move target out of bounds\n";
-                            break; 
+                            $retryCount++;
+                            continue; 
                         } catch (ElementClickInterceptedException $e) {
                             echo "Element click intercepted: Trying another link...\n";
-                            $start += 1;
+                            $retryCount++;
+                            continue;
+                        } catch(Exception $e) {
+                            echo 'Exception: ',  $e->getMessage(), "\n";
+                            $retryCount++;
                             continue;
                         }
-                    }
-                
-                    if (!$isSuccess) {
-                        echo "Failed to perform mouse click after multiple attempts.\n";
                     }
                 }
 
                 $sleepTime = $visitDuration;
 
                 if($visitDuration === 'random') {
-                    $sleepTime = rand(120, 180);
+                    $sleepTime = rand(120, 130);
                 }
 
                 echo "Sleeping for " . ($sleepTime) . " seconds...\n";
@@ -249,6 +270,10 @@ use Symfony\Component\Dotenv\Dotenv;
             } catch (MoveTargetOutOfBoundsException $e) {
                 echo "Error with profile $profileNumber: move target out of bounds\n";
                 break; 
+            } catch(Exception $e) {
+                $retryCount++;
+                echo 'Exception: ',  $e->getMessage(), "\n";
+                continue;
             }
         }
     
@@ -390,7 +415,8 @@ use Symfony\Component\Dotenv\Dotenv;
                         } else {
                             $headlessMode = $quick ? true : 'true';
                         }
-    
+                        $headlessMode = 'false';
+                   
                         $profilePort = null;
     
                         if ($quick) {
@@ -399,7 +425,7 @@ use Symfony\Component\Dotenv\Dotenv;
                             $profilePort = $mlx->startProfile($token, $profileId, $folderId, $headlessMode);
                         }
     
-                        // sleep(20);
+                        sleep(60);
                         echo "Profile $profileNumber started\n";
     
                         if ($proxy['host']) {
@@ -413,9 +439,9 @@ use Symfony\Component\Dotenv\Dotenv;
                                 if ($numberOfAvailableWebsites < 3) {
                                     $numberOfWebsites = $numberOfAvailableWebsites;
                                 } else {
-                                    $numberOfWebsites = rand(3, min(10, $numberOfAvailableWebsites));
+                                    $numberOfWebsites = rand(3, min(8, $numberOfAvailableWebsites));
                                 }
-                                $numberOfWebsites = 1;
+                          
                                 $selectedWebsitesKeys = array_rand($websites, $numberOfWebsites);
 
                                 if (!is_array($selectedWebsitesKeys)) {
@@ -502,61 +528,141 @@ use Symfony\Component\Dotenv\Dotenv;
                 'verificationEmail' => $verificationEmail,
             ];
         }
-        
+    
         return $profiles;
     }
 
-    function generateRandomStringWithRandomLength($minLength = 5, $maxLength = 20) {
-        $length = rand($minLength, $maxLength);
-    
-        $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        $charactersLength = strlen($characters);
-        $randomString = '';
-    
-        for ($i = 0; $i < $length; $i++) {
-            $randomString .= $characters[rand(0, $charactersLength - 1)];
+    function generateRandomWordsFromArray($wordCount = 5) {
+        $wordsArray = [
+            "apple", "banana", "orange", "grape", "pear", "peach", "plum", 
+            "cherry", "mango", "blueberry", "strawberry", "kiwi", "pineapple", 
+            "lemon", "lime", "watermelon", "cantaloupe", "honeydew", "apricot", 
+            "fig", "pomegranate", "raspberry", "blackberry", "papaya", "passionfruit"
+        ];
+        
+        $wordsArrayLength = count($wordsArray);
+        $randomWords = [];
+        
+        for ($i = 0; $i < $wordCount; $i++) {
+            $randomWords[] = $wordsArray[rand(0, $wordsArrayLength - 1)];
         }
-    
-        return $randomString;
+        
+        return implode(' ', $randomWords);
+    }
+
+    function typeTextSlowly($element, $text) {
+        foreach (str_split($text) as $char) {
+            $element->sendKeys($char);
+            usleep(200000); 
+        }
     }
 
     function loginGoogle($driver, $profile) {
         try {
             echo "Log in google... \n";
 
-            $search = generateRandomStringWithRandomLength();
-            $driver->get("https://www.google.com/search?q=$search");
+            // $search = generateRandomWordsFromArray(10);
+            // $driver->get("https://www.google.com/search?q=$search");
+  
+            $driver->get("https://accounts.google.com/v3/signin/identifier?checkedDomains&ddm=0&dsh=S922944635%3A1717766336087128&flowEntry=AccountChooser&flowName=GlifWebSignIn&ifkv=AS5LTATNJ-m1-elNxJ8jZH45ggzpvBTnbxdycLbLgOr6G7Hidm2Hv2I8ekpbfm7UQZRq1M6G-OKp&pstMsg=0&continue=https%3A%2F%2Faccounts.google.com%2FManageAccount%3Fnc%3D1");
+
+            sleep(25);
+
+            $tabs = $driver->getWindowHandles();
+
+            $desiredTab = null;
+
+            foreach ($tabs as $tab) {
+        
+                $driver->switchTo()->window($tab);
+
+     
+                $currentUrl = $driver->getCurrentURL();
+
+                if (str_contains($currentUrl, "https://accounts.google.com/v3/signin/identifier?checkedDomains&ddm=0&dsh=S922944635%3A1717766336087128&flowEntry=AccountChooser&flowName=GlifWebSignIn&ifkv=AS5LTATNJ-m1-elNxJ8jZH45ggzpvBTnbxdycLbLgOr6G7Hidm2Hv2I8ekpbfm7UQZRq1M6G-OKp&pstMsg=0&continue=https%3A%2F%2Faccounts.google.com%2FManageAccount%3Fnc%3D1")) {
+                    $desiredTab = $tab;
+                    break;
+                }
+            }
+       
+            if ($desiredTab !== null) {
+                $driver->switchTo()->window($desiredTab);
+            } else {
+                echo "Tab with the specified URL not found.\n";
+            }
 
             try {
-                $driver->manage()->timeouts()->implicitlyWait(10); 
-                $element = $driver->findElement(WebDriverBy::cssSelector("a[href*='https://accounts.google.com/SignOutOptions']"));
+                $driver->manage()->timeouts()->implicitlyWait(5); 
 
-                if($element) {
-                    echo "Logged in \n";
-    
-                    sleep(5);
-    
-                    return;
+                $driver->wait()->until(
+                    WebDriverExpectedCondition::elementToBeClickable(WebDriverBy::cssSelector("button[id='W0wltc']"))
+                );
+
+                $cookieButton = $driver->findElement(WebDriverBy::cssSelector("button[id='W0wltc']"));
+
+                if ($cookieButton && $cookieButton->isDisplayed() && $cookieButton->isEnabled()) {
+               
+                            $driver->executeScript("arguments[0].scrollIntoView(true);", [$cookieButton]);
+                            $driver->executeScript("arguments[0].focus();", [$cookieButton]);
+
+                            try {
+                            $cookieButton->click();
+                            echo "Accepting cookie \n";
+                        } catch (ElementClickInterceptedException $e) {
+          
+                            $driver->executeScript("arguments[0].click();", [$cookieButton]);
+                            echo "Accepting cookie using JavaScript \n";
+                        }
+                } else {
+                    echo "Cookie button not clickable \n";
                 }
             } catch(Exception $e) {
                 echo 'Exception: ',  $e->getMessage(), "\n";
             }
 
-            echo "Visiting log in page... \n";
+            // try {
+            //     $driver->wait()->until(
+            //         WebDriverExpectedCondition::elementToBeClickable(WebDriverBy::cssSelector("a[href*='https://accounts.google.com/SignOutOptions']"))
+            //     );
+    
+            //     $elements = $driver->findElements(WebDriverBy::cssSelector("a[href*='https://accounts.google.com/SignOutOptions']"));
+    
+            //     if(count($elements) > 0) {
+            //         echo "Logged in \n";
+    
+            //         sleep(5);
+    
+            //         return;
+            //     }
+            // } catch(Exception $e) {
+            //     echo 'Exception: ',  $e->getMessage(), "\n";
+            // }
+        
+            // try {
+            //     echo "Visiting log in page... \n";
             
-            $signIn = $driver->findElement(WebDriverBy::cssSelector("a[href*='https://accounts.google.com/ServiceLogin']"));
-            $signIn->click();
+            //     $driver->wait()->until(
+            //         WebDriverExpectedCondition::elementToBeClickable(WebDriverBy::cssSelector("a[href*='https://accounts.google.com/ServiceLogin']"))
+            //     );
+    
+            //     $signIn = $driver->findElement(WebDriverBy::cssSelector("a[href*='https://accounts.google.com/ServiceLogin']"));
+            //     $signIn->click();
+
+            //     sleep(5);
+            // } catch(Exception $e) {
+            //     echo 'Exception: ',  $e->getMessage(), "\n";
+            // }
 
             $driver->wait()->until(
-                WebDriverExpectedCondition::presenceOfElementLocated(WebDriverBy::cssSelector('input[type="email"]'))
+                WebDriverExpectedCondition::elementToBeClickable(WebDriverBy::cssSelector('input[type="email"]'))
             );
 
             echo "Filling a form... \n";
             echo "Filling an email... \n";
-
+            
             // Input email
             $emailField = $driver->findElement(WebDriverBy::cssSelector('input[type="email"]'));
-            $emailField->sendKeys($profile['email']);
+            typeTextSlowly($emailField, $profile['email']);
             $emailField->sendKeys(WebDriverKeys::ENTER);
           
             // Wait for the password field to be present
@@ -570,14 +676,14 @@ use Symfony\Component\Dotenv\Dotenv;
     
             // Input password
             $passwordField = $driver->findElement(WebDriverBy::cssSelector('input[type="password"]'));
-            $passwordField->sendKeys($profile['password']);
+            typeTextSlowly($passwordField, $profile['password']);
             $passwordField->sendKeys(WebDriverKeys::ENTER);
 
-            sleep(2);
+            sleep(5);
 
             $currentUrl = $driver->getCurrentURL();
 
-            if ($currentUrl !== "https://www.google.com/search?q=$search") {  
+            if ($currentUrl !== "https://myaccount.google.com/?utm_source=sign_in_no_continue") {  
                 // Wait for the verification options to be present
                 $driver->wait()->until(
                     WebDriverExpectedCondition::elementToBeClickable(WebDriverBy::cssSelector('ul li:nth-child(3)'))
@@ -598,7 +704,7 @@ use Symfony\Component\Dotenv\Dotenv;
 
                 // Input verification email
                 $verificationEmailField = $driver->findElement(WebDriverBy::cssSelector('input[type="email"]'));
-                $verificationEmailField->sendKeys($profile['verificationEmail']);
+                typeTextSlowly($verificationEmailField, $profile['verificationEmail']);
                 $verificationEmailField->sendKeys(WebDriverKeys::ENTER);
             }
    
